@@ -55,7 +55,16 @@ async def get_answer(session, prompt, model_choice, common_instructions, api_key
             return None  # Handle exceptions appropriately
 
 
-async def get_answers(prompts, model_choice, common_instructions, api_key, temperature):
+async def get_answers(prompts, model_choice, common_instructions, api_key, temperature, batch_size=5):
+    results = []
+    # Use a context manager to ensure the session is closed after use
     async with aiohttp.ClientSession() as session:
-        results = await asyncio.gather(*(get_answer(session, prompt, model_choice, common_instructions, api_key, temperature) for prompt in prompts))
+        for i in range(0, len(prompts), batch_size):
+            batch_prompts = prompts[i:i+batch_size]
+            tasks = [get_answer(session, prompt, model_choice, common_instructions, api_key, temperature) for prompt in batch_prompts]
+            batch_results = await asyncio.gather(*tasks)
+            results.extend(batch_results)
+            # Check if we need to wait before the next batch
+            if i + batch_size < len(prompts):
+                await asyncio.sleep(5)  # Adjust the delay as needed
     return results
