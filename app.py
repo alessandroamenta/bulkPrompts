@@ -1,5 +1,6 @@
 import streamlit as st
-from openai_handler import get_answers, is_valid_api_key
+from openai_handler import get_answers as get_answers_async, is_valid_api_key
+from sync import get_answers as get_answers_sync 
 import pandas as pd
 from io import BytesIO
 import base64
@@ -14,6 +15,12 @@ API_KEY = st.sidebar.text_input("🔑 OpenAI API Key", value='', type='password'
 model_choice = st.sidebar.selectbox("🤖 Choose model:", ["gpt-3.5-turbo-16k", "gpt-4"])
 # Add a slider for temperature setting in the sidebar
 temperature = st.sidebar.slider("🌡️ Temperature", min_value=0.0, max_value=1.0, value=0.2, step=0.01)
+# Add a toggle for choosing between async and sync processing in the sidebar
+processing_mode = st.sidebar.radio(
+    "Choose processing mode:",
+    ("Async", "Sync"),
+    index=0  # Default to Asynchronous
+)
 # Add a text area for common instructions in the sidebar
 with st.sidebar.expander("📝 Custom Instructions"):
     common_instructions = st.text_area(
@@ -65,35 +72,37 @@ else:
 
 # Button to generate answers
 if st.button("🚀 Generate Answers"):
-    if not API_KEY:  # Check if the API key is not entered
+    if not API_KEY:
         st.error("You forgot to add your API key, please add it and try again! :)")
+    elif not asyncio.run(is_valid_api_key(API_KEY)):
+        st.error("The API key provided is not valid. Please check your key and try again.")
     else:
-        # Check if the API key is valid
-        if asyncio.run(is_valid_api_key(API_KEY)):  # Corrected this line
-            with st.spinner('👩‍🍳 GPT is whipping up your answers! Hang tight, this will just take a moment... 🍳'):
-                answers = asyncio.run(get_answers(prompts, model_choice, common_instructions, API_KEY, temperature))
-                logging.info(f"Answers received: {answers}")
+        if processing_mode == "Async":
+            # Asynchronous processing
+            with st.spinner('👩‍🍳 GPT is whipping up your answers asynchronously! Hang tight...'):
+                answers = asyncio.run(get_answers_async(prompts, model_choice, common_instructions, API_KEY, temperature))
+        elif processing_mode == "Sync":
+            # Synchronous processing
+            with st.spinner('👩‍🍳 GPT is whipping up your answers synchronously! This may take some time...'):
+                answers = get_answers_sync(prompts, model_choice, common_instructions, API_KEY, temperature)
 
-                # Create a DataFrame
-                df = pd.DataFrame({
-                    'Prompts': prompts,
-                    'Answers': answers
-                })
-                
-                # Convert DataFrame to Excel and let the user download it
-                output = BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df.to_excel(writer, index=False)
-                    # writer.save()  # This line should be removed, it's not needed.
+        logging.info(f"Answers received: {answers}")
 
-                excel_data = output.getvalue()
-                b64 = base64.b64encode(excel_data).decode('utf-8') 
-                
-                st.success("🎉 Answers generated successfully!")
-                
-                # Display the styled download link directly
-                st.markdown(f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="answers.xlsx" style="display: inline-block; padding: 0.25em 0.5em; text-decoration: none; background-color: #4CAF50; color: white; border-radius: 3px; cursor: pointer;">📤 Download Excel File</a>', unsafe_allow_html=True)
+        # Create a DataFrame
+        df = pd.DataFrame({
+            'Prompts': prompts,
+            'Answers': answers
+        })
+        
+        # Convert DataFrame to Excel and let the user download it
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False)
 
-        else:
-            st.error("The API key provided is not valid. Please check your key and try again.")
-
+        excel_data = output.getvalue()
+        b64 = base64.b64encode(excel_data).decode('utf-8') 
+        
+        st.success("🎉 Answers generated successfully!")
+        
+        # Display the styled download link directly
+        st.markdown(f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="answers.xlsx" style="display: inline-block; padding: 0.25em 0.5em; text-decoration: none; background-color: #4CAF50; color: white; border-radius: 3px; cursor: pointer;">📤 Download Excel File</a>', unsafe_allow_html=True)
