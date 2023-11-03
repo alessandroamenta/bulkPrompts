@@ -12,7 +12,8 @@ logging.basicConfig(level=logging.INFO)
 st.sidebar.title("🛠️ Settings")
 API_KEY = st.sidebar.text_input("🔑 OpenAI API Key", value='', type='password')
 model_choice = st.sidebar.selectbox("🤖 Choose model:", ["gpt-3.5-turbo-16k", "gpt-4"])
-
+# Add a slider for temperature setting in the sidebar
+temperature = st.sidebar.slider("🌡️ Temperature", min_value=0.0, max_value=1.0, value=0.2, step=0.01)
 # Add a text area for common instructions in the sidebar
 with st.sidebar.expander("📝 Custom Instructions"):
     common_instructions = st.text_area(
@@ -25,12 +26,13 @@ with st.sidebar.expander("🔍 How to use"):
     st.write("""
     1. 🔑 Input your OpenAI API key.
     2. 🤖 Pick the model.
-    3. ✍️ Add custom instructions for all prompts (if needed).
-    4. 📥 Choose the input method: Text Box or File Upload.
-    5. 📝 If using Text Box, separate each prompt with a blank line.
-    6. 📂 If using File Upload, upload a CSV or Excel file.
-    7. 🚀 Click the "Generate Answers" button.
-    8. 📤 Once answers are generated, download the Excel file with results.
+    3. 🌡️ Adjust the temperature to tweak creativity.
+    4. ✍️ Add custom instructions for all prompts (if needed).
+    5. 📥 Choose the input method: Text Box or File Upload.
+    6. 📝 If using Text Box, separate each prompt with a blank line.
+    7. 📂 If using File Upload, upload a CSV or Excel file.
+    8. 🚀 Click the "Generate Answers" button.
+    9. 📤 Once answers are ready, download the Excel file with results.
     """)
 
 st.title("🧠 GPT Answer Generator")
@@ -69,7 +71,7 @@ if st.button("🚀 Generate Answers"):
         # Check if the API key is valid
         if asyncio.run(is_valid_api_key(API_KEY)):  # Corrected this line
             with st.spinner('👩‍🍳 GPT is whipping up your answers! Hang tight, this will just take a moment... 🍳'):
-                answers = asyncio.run(get_answers(prompts, model_choice, common_instructions, API_KEY))
+                answers = asyncio.run(get_answers(prompts, model_choice, common_instructions, API_KEY, temperature))
                 logging.info(f"Answers received: {answers}")
 
                 # Create a DataFrame

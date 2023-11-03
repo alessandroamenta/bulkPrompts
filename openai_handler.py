@@ -23,7 +23,7 @@ async def is_valid_api_key(api_key):
             else:
                 return False  # The API key is invalid or there was another error
 
-async def get_answer(session, prompt, model_choice, common_instructions, api_key):
+async def get_answer(session, prompt, model_choice, common_instructions, api_key, temperature):
     full_prompt = f"{common_instructions}\n{prompt}" if common_instructions else prompt
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -33,7 +33,7 @@ async def get_answer(session, prompt, model_choice, common_instructions, api_key
     data = {
         "model": model_choice,
         "messages": [{"role": "user", "content": full_prompt}],
-        "temperature": 0.2,
+        "temperature": temperature,
         "top_p": 1
     }
     async with session.post(API_URL, headers=headers, json=data) as response:
@@ -55,7 +55,7 @@ async def get_answer(session, prompt, model_choice, common_instructions, api_key
             return None  # Handle exceptions appropriately
 
 
-async def get_answers(prompts, model_choice, common_instructions, api_key):
+async def get_answers(prompts, model_choice, common_instructions, api_key, temperature):
     async with aiohttp.ClientSession() as session:
-        results = await asyncio.gather(*(get_answer(session, prompt, model_choice, common_instructions, api_key) for prompt in prompts))
+        results = await asyncio.gather(*(get_answer(session, prompt, model_choice, common_instructions, api_key, temperature) for prompt in prompts))
     return results
