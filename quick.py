@@ -23,7 +23,7 @@ async def is_valid_api_key(api_key):
             else:
                 return False  # The API key is invalid or there was another error
 
-async def get_answer(session, prompt, model_choice, common_instructions, api_key, temperature):
+async def get_answer(session, prompt, model_choice, common_instructions, api_key, temperature, seed): 
     full_prompt = f"{common_instructions}\n{prompt}" if common_instructions else prompt
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -34,7 +34,8 @@ async def get_answer(session, prompt, model_choice, common_instructions, api_key
         "model": model_choice,
         "messages": [{"role": "user", "content": full_prompt}],
         "temperature": temperature,
-        "top_p": 1
+        "top_p": 1,
+        "seed": seed 
     }
     async with session.post(API_URL, headers=headers, json=data) as response:
         logging.info(f"Request payload: {data}")
@@ -49,21 +50,36 @@ async def get_answer(session, prompt, model_choice, common_instructions, api_key
             logging.info(f"Response data: {response_data}")
             # Extract content if the expected structure is present
             return response_data.get('choices', [{}])[0].get('message', {}).get('content', '')
+        except aiohttp.ClientError as client_error:
+            # This will catch issues like network errors, connection errors, etc.
+            logging.error(f"Client error occurred: {client_error}")
+            return None
+
+        except asyncio.TimeoutError:
+            # This will catch the specific timeout error
+            logging.error("Request timed out.")
+            return None
+
         except Exception as e:
-            # Log any exception that occurs during the JSON parsing
-            logging.error(f"Exception occurred while parsing the response: {e}")
-            return None  # Handle exceptions appropriately
+            # Catch-all for any other exceptions
+            logging.error(f"Unexpected exception occurred: {e}")
+            return None
 
 
-async def get_answers(prompts, model_choice, common_instructions, api_key, temperature, batch_size=5):
+async def get_answers(prompts, model_choice, common_instructions, api_key, temperature, seed, batch_size, progress_bar):
     results = []
+    total = len(prompts)
     # Use a context manager to ensure the session is closed after use
     async with aiohttp.ClientSession() as session:
         for i in range(0, len(prompts), batch_size):
             batch_prompts = prompts[i:i+batch_size]
-            tasks = [get_answer(session, prompt, model_choice, common_instructions, api_key, temperature) for prompt in batch_prompts]
+            tasks = [get_answer(session, prompt, model_choice, common_instructions, api_key, temperature, seed) for prompt in batch_prompts]
             batch_results = await asyncio.gather(*tasks)
             results.extend(batch_results)
+
+            # Update progress bar
+            progress = min((i + batch_size) / total, 1)
+            progress_bar.progress(progress)
             # Check if we need to wait before the next batch
             if i + batch_size < len(prompts):
                 await asyncio.sleep(5)  # Adjust the delay as needed

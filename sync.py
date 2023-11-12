@@ -19,7 +19,7 @@ def is_valid_api_key(api_key):
     response = requests.post(API_URL, headers=headers, json=data)
     return response.status_code == 200
 
-def get_answer(prompt, model_choice, common_instructions, api_key, temperature):
+def get_answer(prompt, model_choice, common_instructions, api_key, temperature, seed):
     full_prompt = f"{common_instructions}\n{prompt}" if common_instructions else prompt
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -30,20 +30,34 @@ def get_answer(prompt, model_choice, common_instructions, api_key, temperature):
         "model": model_choice,
         "messages": [{"role": "user", "content": full_prompt}],
         "temperature": temperature,
-        "top_p": 1
+        "top_p": 1,
+        "seed": seed 
     }
     response = requests.post(API_URL, headers=headers, json=data)
-    if response.status_code == 200:
-        response_data = response.json()
-        return response_data.get('choices', [{}])[0].get('message', {}).get('content', '')
-    else:
-        logging.error(f"Error: {response.status_code}, {response.text}")
+    logging.info(f"Response Status: {response.status_code}, Response Time: {response.elapsed.total_seconds()} seconds")
+    if response.status_code != 200:
+        logging.error(f"Non-200 response received: {response.status_code}\nResponse text: {response.text}")
         return None
+    try:
+        response_data = response.json()
+        answer = response_data.get('choices', [{}])[0].get('message', {}).get('content', '')
+        system_fingerprint = response_data.get('system_fingerprint', 'Not available')
+        return answer, system_fingerprint
+    except Exception as e:
+        logging.error(f"Exception occurred while parsing the response: {e}")
+        return None, None 
 
-def get_answers(prompts, model_choice, common_instructions, api_key, temperature):
+def get_answers(prompts, model_choice, common_instructions, api_key, temperature, seed, progress_bar):
     results = []
-    for prompt in prompts:
-        answer = get_answer(prompt, model_choice, common_instructions, api_key, temperature)
+    total = len(prompts)
+    for index, prompt in enumerate(prompts):
+        answer, system_fingerprint = get_answer(prompt, model_choice, common_instructions, api_key, temperature, seed)
         results.append(answer)
-        time.sleep(1)  # Sleep for a second between each request to avoid rate limiting
+        # Update the progress bar
+        progress = (index + 1) / total
+        progress_bar.progress(progress)
+        logging.info(f"Processing prompt {index+1}/{total}: {prompt[:50]}... System Fingerprint: {system_fingerprint}")
+
+        time.sleep(5) 
+
     return results
